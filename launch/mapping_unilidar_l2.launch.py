@@ -39,12 +39,12 @@ def generate_launch_description():
     ]
 
     # Node that is an adpater of GO2 BODY IMU
-    Node(
+    body_imu_node = Node(
         package='point_lio',
         executable='go2_body_imu_raw',
         name='go2_body_imu_raw',
-        output='screen'
-    ),
+        output='log'
+    )
 
     # Node definition for laserMapping with Point-LIO
     laser_mapping_node = Node(
@@ -73,6 +73,7 @@ def generate_launch_description():
     # Assemble the launch description
     ld = LaunchDescription([
         rviz_arg,
+        body_imu_node,
         laser_mapping_node,
         GroupAction(
             actions=[rviz_node],
