@@ -1,6 +1,7 @@
 #include "parameters.h"
 
 bool odom_only;
+bool navigation_output_en;
 std::string odom_header_frame_id, odom_child_frame_id;
 
 bool is_first_frame = true;
@@ -36,6 +37,7 @@ void readParameters(shared_ptr<rclcpp::Node> &nh) {
     p_pre.reset(new Preprocess());
 
     nh->declare_parameter<bool>("odom_only", false);
+    nh->declare_parameter<bool>("publish.navigation_output_en", false);
     nh->declare_parameter<std::string>("odom_header_frame_id", "camera_init");
     nh->declare_parameter<std::string>("odom_child_frame_id", "aft_mapped");
 
@@ -96,6 +98,7 @@ void readParameters(shared_ptr<rclcpp::Node> &nh) {
 
     // 使用get_parameter方法获取参数值
     nh->get_parameter("odom_only", odom_only);
+    nh->get_parameter("publish.navigation_output_en", navigation_output_en);
     nh->get_parameter("odom_header_frame_id", odom_header_frame_id);
     nh->get_parameter("odom_child_frame_id", odom_child_frame_id);
 

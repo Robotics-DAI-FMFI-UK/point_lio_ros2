@@ -25,6 +25,7 @@
 
 #include "parameters.h"
 #include "Estimator.h"
+#include "scan_reference.hpp"
 
 
 #define MAXN                (720000)
@@ -692,6 +693,59 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     tf_br->sendTransform(transform);
 }
 
+// All points share the final processed-state reference, while retaining the
+// motion compensation already present in the per-point world coordinates.
+void publish_navigation_frame(
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &cloud_pub,
+    const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr &odom_pub,
+    const std::vector<bool> &world_valid) {
+    if (!navigation_output_en || odom_only || world_valid.empty() ||
+        !std::isfinite(time_current) || time_current <= 0.0) return;
+    nav_msgs::msg::Odometry odom;
+    odom.header.stamp = get_ros_time(time_current);
+    odom.header.frame_id = odom_header_frame_id;
+    odom.child_frame_id = odom_child_frame_id;
+    set_posestamp(odom.pose.pose);
+    const auto &o = odom.pose.pose.orientation;
+    Eigen::Quaterniond q(o.w, o.x, o.y, o.z);
+    const auto &t = odom.pose.pose.position;
+    if (!q.coeffs().allFinite() || q.norm() < 1e-9 ||
+        !std::isfinite(t.x) || !std::isfinite(t.y) || !std::isfinite(t.z)) return;
+    q.normalize();
+    odom.pose.pose.orientation.w = q.w();
+    odom.pose.pose.orientation.x = q.x();
+    odom.pose.pose.orientation.y = q.y();
+    odom.pose.pose.orientation.z = q.z();
+    scan_reference::Pose reference;
+    reference.position = {{t.x, t.y, t.z}};
+    const Eigen::Matrix3d rotation = q.toRotationMatrix();
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) reference.rotation[3*i+j] = rotation(i,j);
+    pcl::PointCloud<pcl::PointXYZI> body;
+    body.reserve(feats_down_world->size());
+    for (size_t i = 0; i < feats_down_world->size(); ++i) {
+        if (!world_valid[i]) continue;  // skipped Kalman update: no world point
+        const auto &w = feats_down_world->points[i];
+        if (!std::isfinite(w.x) || !std::isfinite(w.y) || !std::isfinite(w.z)) continue;
+        const auto b = scan_reference::worldToBody(reference, w.x, w.y, w.z);
+        pcl::PointXYZI point;
+        point.x = b[0]; point.y = b[1]; point.z = b[2]; point.intensity = w.intensity;
+        body.push_back(point);
+    }
+    if (body.empty()) return;
+    sensor_msgs::msg::PointCloud2 cloud;
+    pcl::toROSMsg(body, cloud);
+    cloud.header = odom.header;
+    cloud.header.frame_id = odom.child_frame_id;
+    // Pose only: unknown covariance/twist must not claim perfect confidence.
+    for (int i = 0; i < 6; ++i) {
+        odom.pose.covariance[7*i] = 1.0;
+        odom.twist.covariance[7*i] = 1e6;
+    }
+    odom_pub->publish(odom);
+    cloud_pub->publish(cloud);
+}
+
 void publish_path(const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr &pubPath) {
 
     if (odom_only) {return;}
@@ -799,6 +853,16 @@ int main(int argc, char **argv) {
                 ("/Laser_map", 100000);
         pubPath = nh->create_publisher<nav_msgs::msg::Path>
                 ("/path", 100000);
+    }
+
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr navigation_cloud;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr navigation_odom;
+    if (navigation_output_en && !odom_only) {
+        const auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
+        navigation_cloud = nh->create_publisher<sensor_msgs::msg::PointCloud2>(
+            "/fastlio2/body_cloud", qos);
+        navigation_odom = nh->create_publisher<nav_msgs::msg::Odometry>(
+            "/fastlio2/lio_odom", qos);
     }
 
     // Choose topic name depending on odom_only value
@@ -924,6 +988,8 @@ int main(int argc, char **argv) {
                 publish_init_kdtree(pubLaserCloudMap); //(pubLaserCloudFullRes);
                 continue;
             }
+            std::vector<bool> navigation_world_valid(feats_down_size, false);
+
             /*** ICP and Kalman filter update ***/
             normvec->resize(feats_down_size);
             feats_down_world->resize(feats_down_size);
@@ -1087,6 +1153,7 @@ int main(int argc, char **argv) {
                         PointType &point_body_j = feats_down_body->points[idx + j + 1];
                         PointType &point_world_j = feats_down_world->points[idx + j + 1];
                         pointBodyToWorld(&point_body_j, &point_world_j);
+                        navigation_world_valid[idx + j + 1] = true;
                     }
 
                     solve_time += omp_get_wtime() - solve_start;
@@ -1239,6 +1306,7 @@ int main(int argc, char **argv) {
                         PointType &point_body_j = feats_down_body->points[idx + j + 1];
                         PointType &point_world_j = feats_down_world->points[idx + j + 1];
                         pointBodyToWorld(&point_body_j, &point_world_j);
+                        navigation_world_valid[idx + j + 1] = true;
                     }
                     solve_time += omp_get_wtime() - solve_start;
 
@@ -1246,6 +1314,8 @@ int main(int argc, char **argv) {
                     idx = idx + time_seq[k];
                 }
             }
+
+            publish_navigation_frame(navigation_cloud, navigation_odom, navigation_world_valid);
 
             /******* Publish odometry downsample *******/
             if (!publish_odometry_without_downsample) {

@@ -29,6 +29,7 @@
   <depend>pcl_conversions</depend> <!-- For PCL support -->
   <depend>visualization_msgs</depend> <!-- For visualization_msgs support -->
   <depend>unitree_go</depend>
+  <exec_depend>tf2_msgs</exec_depend>
 
   <!-- <depend>livox_ros_driver2</depend> -->
 

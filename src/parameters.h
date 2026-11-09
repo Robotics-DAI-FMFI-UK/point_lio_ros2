@@ -10,6 +10,7 @@
 #include "preprocess.h"
 
 extern bool odom_only;
+extern bool navigation_output_en;
 extern std::string odom_header_frame_id;
 extern std::string odom_child_frame_id;
 
