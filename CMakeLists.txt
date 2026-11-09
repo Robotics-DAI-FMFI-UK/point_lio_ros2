@@ -46,6 +46,7 @@ find_package(pcl_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(unitree_go REQUIRED)
 # find_package(livox_ros_driver2 REQUIRED)
 
 find_package(Eigen3 REQUIRED)
@@ -94,6 +95,13 @@ install(
         DIRECTORY config launch rviz_cfg
         DESTINATION share/${PROJECT_NAME}
 )
+
+#----------------- Adapter for body IMU
+add_executable(go2_body_imu_raw src/go2_body_imu_raw.cpp)
+ament_target_dependencies(go2_body_imu_raw rclcpp sensor_msgs unitree_go)
+
+install(TARGETS go2_body_imu_raw DESTINATION lib/${PROJECT_NAME})
+#----------------- Adapter for body IMU
 
 # Export dependencies
 ament_export_dependencies(rclcpp

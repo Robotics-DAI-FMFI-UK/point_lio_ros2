@@ -1,8 +1,9 @@
 /**:
     ros__parameters:
         common:
-            lid_topic: "/unilidar/cloud" 
-            imu_topic: "/unilidar/imu" 
+            lid_topic: "/utlidar/cloud" 
+            imu_topic: "/utlidar/imu" 
+            # imu_topic: "/pointlio/imu_calibrated" 
             con_frame: false # true: if you need to combine several LiDAR frames into one
             con_frame_num: 1 # the number of frames combined
             cut_frame: false # true: if you need to cut one LiDAR frame into several subframes

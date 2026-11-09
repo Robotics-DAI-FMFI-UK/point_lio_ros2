@@ -15,8 +15,13 @@ def generate_launch_description():
     # Node parameters, including those from the YAML configuration file
     laser_mapping_params = [
         PathJoinSubstitution([
-            FindPackageShare('point_lio'),
-            'config', 'unilidar_l2.yaml'
+            #### PALO replacing config after calibration
+             # FindPackageShare('point_lio'),
+             # 'config', 'unilidar_l2.yaml'
+             FindPackageShare('point_lio'),
+             'config', 'utlidar_l2_body_raw.yaml'
+            ##FindPackageShare('point_lio'),
+            ##'config', 'unilidar_l2_calibrated.yaml'
         ]),
         {
             'use_imu_as_input': False,  # Change to True to use IMU as input of Point-LIO
@@ -29,8 +34,17 @@ def generate_launch_description():
             'filter_size_map': 0.1,  # Options: 0.5, 0.3, 0.15, 0.1
             'cube_side_length': 1000.0,  # Option: 1000
             'runtime_pos_log_enable': False,  # Option: True
+            'pcd_save_enable': 1, # PALO - save the pcd map
         }
     ]
+
+    # Node that is an adpater of GO2 BODY IMU
+    Node(
+        package='point_lio',
+        executable='go2_body_imu_raw',
+        name='go2_body_imu_raw',
+        output='screen'
+    ),
 
     # Node definition for laserMapping with Point-LIO
     laser_mapping_node = Node(
@@ -40,6 +54,7 @@ def generate_launch_description():
         output='screen',
         parameters=laser_mapping_params,
         # prefix='gdb -ex run --args'
+        sigterm_timeout='60',
     )
 
     # Conditional RViz node launch
