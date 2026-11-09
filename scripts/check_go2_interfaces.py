@@ -45,6 +45,14 @@ def world_point(p, pose):
                  for i in range(3))
 
 
+def qos_summary(profile):
+    def policy(name):
+        value = getattr(profile, name)
+        return getattr(value, 'name', str(value))
+    return 'reliability={} durability={} history={} depth={}'.format(
+        policy('reliability'), policy('durability'), policy('history'), profile.depth)
+
+
 class Check(Node):
     def __init__(self):
         super().__init__('go2_interface_check')
@@ -101,8 +109,9 @@ class Check(Node):
             print('{}: received={:.1f} Hz frame={} stamp_ns={}{}'.format(
                 topic, count/duration, msg.header.frame_id, stamp(msg), extra))
             for ep in self.get_publishers_info_by_topic(topic):
-                print('  publisher={}/{} QoS={}'.format(
-                    ep.node_namespace, ep.node_name, ep.qos_profile))
+                print('  publisher={} QoS={}'.format(
+                    ep.node_namespace.rstrip('/') + '/' + ep.node_name,
+                    qos_summary(ep.qos_profile)))
         print('Observed TF edges (check publisher identities separately):', dict(self.transforms))
         if baseline:
             return all(self.counts[t] for t in (

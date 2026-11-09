@@ -51,7 +51,8 @@ PointCloudXYZI::Ptr ptr_con(new PointCloudXYZI());
 double T1[MAXN], s_plot[MAXN], s_plot2[MAXN], s_plot3[MAXN], s_plot11[MAXN];
 double match_time = 0, solve_time = 0, propag_time = 0, update_time = 0;
 
-bool lidar_pushed = false, flg_reset = false, flg_exit = false;
+bool lidar_pushed = false, flg_reset = false;
+volatile std::sig_atomic_t flg_exit = 0;
 
 vector<BoxPointType> cub_needrm;
 
@@ -80,9 +81,8 @@ geometry_msgs::msg::PoseStamped msg_body_pose;
 auto logger = rclcpp::get_logger("laserMapping");
 
 void SigHandle(int sig) {
-    flg_exit = true;
-    RCLCPP_WARN(logger, "catch sig %d", sig);
-    sig_buffer.notify_all();
+    // POSIX signal context: logging and condition-variable calls are unsafe.
+    flg_exit = sig;
 }
 
 inline void dump_lio_state_to_log(FILE *fp) {
@@ -880,6 +880,7 @@ int main(int argc, char **argv) {
     auto tf_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(nh);
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
+    signal(SIGTERM, SigHandle);
     rclcpp::Rate rate(5000);
     while (rclcpp::ok()) {
         if (flg_exit) break;
@@ -1376,6 +1377,8 @@ int main(int argc, char **argv) {
         }
         rate.sleep();
     }
+    RCLCPP_INFO(logger, "Point-LIO processing stopped (signal=%d); cleaning up",
+                static_cast<int>(flg_exit));
     //--------------------------save map-----------------------------------
     /* 1. make sure you have enough memories
        2. noted that pcd save will influence the real-time performences **/
@@ -1387,6 +1390,8 @@ int main(int argc, char **argv) {
     }
     fout_out.close();
     fout_imu_pbp.close();
+    RCLCPP_INFO(logger, "Point-LIO cleanup complete; releasing map/rebuild thread");
+    rclcpp::shutdown();
 
     return 0;
 }
