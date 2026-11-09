@@ -103,6 +103,8 @@ ament_target_dependencies(go2_body_imu_raw rclcpp sensor_msgs unitree_go)
 install(TARGETS go2_body_imu_raw DESTINATION lib/${PROJECT_NAME})
 #----------------- Adapter for body IMU
 
+install(PROGRAMS scripts/check_go2_interfaces.py DESTINATION lib/${PROJECT_NAME})
+
 # Export dependencies
 ament_export_dependencies(rclcpp
   rclpy
@@ -116,5 +118,13 @@ ament_export_dependencies(rclcpp
   # livox_ros_driver2
   Eigen3
 )
+
+if(BUILD_TESTING)
+  enable_testing()
+  add_executable(scan_reference_test test/scan_reference_test.cpp)
+  target_include_directories(scan_reference_test PRIVATE include)
+  target_compile_options(scan_reference_test PRIVATE -UNDEBUG)
+  add_test(NAME scan_reference_test COMMAND scan_reference_test)
+endif()
 
 ament_package()

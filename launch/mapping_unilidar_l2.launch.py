@@ -12,6 +12,15 @@ def generate_launch_description():
         'rviz', default_value='true',
         description='Flag to launch RViz.')
 
+    navigation_arg = DeclareLaunchArgument(
+        'navigation_output', default_value='false',
+        description='Publish synchronized body cloud and pose for PGO/localizer.')
+    save_arg = DeclareLaunchArgument(
+        'save_pcd', default_value='true',
+        description='Accumulate Point-LIO PCD (disable when PGO saves the map).')
+    world_arg = DeclareLaunchArgument('world_frame', default_value='camera_init')
+    body_arg = DeclareLaunchArgument('body_frame', default_value='aft_mapped')
+
     # Node parameters, including those from the YAML configuration file
     laser_mapping_params = [
         PathJoinSubstitution([
@@ -34,7 +43,10 @@ def generate_launch_description():
             'filter_size_map': 0.1,  # Options: 0.5, 0.3, 0.15, 0.1
             'cube_side_length': 1000.0,  # Option: 1000
             'runtime_pos_log_enable': False,  # Option: True
-            'pcd_save_enable': 1, # PALO - save the pcd map
+            'publish.navigation_output_en': LaunchConfiguration('navigation_output'),
+            'pcd_save.pcd_save_en': LaunchConfiguration('save_pcd'),
+            'odom_header_frame_id': LaunchConfiguration('world_frame'),
+            'odom_child_frame_id': LaunchConfiguration('body_frame'),
         }
     ]
 
@@ -72,7 +84,7 @@ def generate_launch_description():
 
     # Assemble the launch description
     ld = LaunchDescription([
-        rviz_arg,
+        rviz_arg, navigation_arg, save_arg, world_arg, body_arg,
         body_imu_node,
         laser_mapping_node,
         GroupAction(
